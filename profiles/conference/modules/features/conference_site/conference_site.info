@@ -1,4 +1,5 @@
 core = "6.x"
+; 1
 dependencies[] = "admin"
 dependencies[] = "conference_profile"
 dependencies[] = "conference_program"
