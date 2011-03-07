@@ -92,7 +92,7 @@ function feature_news_views_default_views() {
       'relationship' => 'none',
     ),
     'created' => array(
-      'order' => 'DESC',
+      'order' => 'ASC',
       'granularity' => 'second',
       'id' => 'created',
       'table' => 'node',
