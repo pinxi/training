@@ -1,4 +1,7 @@
 core = "6.x"
+
+; group ID = 1
+
 dependencies[] = "admin"
 dependencies[] = "conference_profile"
 dependencies[] = "conference_program"
