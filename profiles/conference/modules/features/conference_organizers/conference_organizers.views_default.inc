@@ -89,7 +89,7 @@ function conference_organizers_views_default_views() {
   ));
   $handler->override_option('sorts', array(
     'field_organizer_order_value' => array(
-      'order' => 'ASC',
+      'order' => 'DESC',
       'delta' => -1,
       'id' => 'field_organizer_order_value',
       'table' => 'node_data_field_organizer_order',
