@@ -43,3 +43,4 @@ name = "Conference Site"
 package = "Conference Template"
 project = "conference_site"
 version = "6.x-1.0-dev"
+; group ID 15
