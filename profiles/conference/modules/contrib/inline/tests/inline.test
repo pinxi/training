@@ -1,0 +1,87 @@
+<?php
+// $Id: inline.test,v 1.1 2010/03/06 02:35:51 sun Exp $
+
+/**
+ * @file
+ * Tests for Inline module.
+ */
+
+class InlineTestHelper extends DrupalWebTestCase {
+  function setUp() {
+    // Allow tests to pass further modules.
+    $modules = func_get_args();
+    $modules[] = 'inline';
+    // @todo Split into inline_upload.test
+    $modules[] = 'inline_upload';
+    $modules[] = 'upload';
+    call_user_func_array(array($this, 'parent::setUp'), $modules);
+
+    // Create users.
+    $this->admin_user = $this->drupalCreateUser(array(
+      'access administration pages',
+      'administer content types',
+      'administer filters',
+      'administer nodes',
+      'administer comments',
+      'administer permissions',
+      'upload files',
+    ));
+    $this->web_user = $this->drupalCreateUser(array(
+      'create story content',
+      'edit own story content',
+      'delete own story content',
+      'access comments',
+      'post comments',
+      'post comments without approval',
+      'upload files',
+    ));
+
+    // Enable Inline for Full HTML text format.
+    $this->drupalLogin($this->admin_user);
+    $edit = array(
+      'roles[2]' => TRUE,
+      'filters[inline/0]' => TRUE,
+    );
+    $this->drupalPost('admin/settings/filters/2', $edit, t('Save configuration'));
+    $this->drupalLogout();
+  }
+}
+
+class InlineSecurityTestCase extends InlineTestHelper {
+  public static function getInfo() {
+    return array(
+      'name' => 'Security',
+      'description' => 'Verifies various security aspects of Inline filter.',
+      'group' => 'Inline',
+    );
+  }
+
+  function testPreviewNode() {
+    $this->drupalLogin($this->web_user);
+    $this->drupalGet('node/add/story');
+    $edit = array(
+      'title' => $this->randomString(),
+      'files[upload]' => realpath('misc/druplicon.png'),
+    );
+    $this->drupalPost(NULL, $edit, t('Preview'));
+    $edit = array(
+      'body' => '[upload|file=1]',
+    );
+    $this->drupalPost(NULL, $edit, t('Preview'));
+    // Markup:
+    // <a href="[absolute]/sites/default/files/blacklist-ui.png" title="Download: blacklist-ui.png (10.43 KB)" class="inline-link inline-file-mime-image-png">blacklist-ui.png</a>
+
+    // Form:
+    // [upload|iid=1|file=blacklist-ui.png]
+
+    // SQL:
+    // INSERT INTO `inline` (`iid`, `tag`, `params`, `status`, `timestamp`) VALUES
+    // - Valid record:
+    // (1, 'upload', 'a:3:{s:3:"iid";i:1;s:4:"file";s:16:"blacklist-ui.png";s:3:"nid";s:1:"1";}', 0, 1267842625),
+    // - Unknown/invalid records:
+    // (2, 'upload', 'a:1:{s:4:"file";i:1;}', 1, 1267842588),
+    // (3, 'upload', 'a:1:{s:4:"file";i:1;}', 1, 1267842605);
+
+  }
+}
+

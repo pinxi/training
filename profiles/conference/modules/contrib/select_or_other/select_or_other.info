@@ -1,0 +1,10 @@
+; $Id: select_or_other.info,v 1.1.2.1 2009/02/28 01:36:18 danielb Exp $
+name = Select (or other)
+description = "Provides a select box form element with additional option 'Other' to give a textfield."
+core = 6.x
+; Information added by drupal.org packaging script on January 1, 1970 - 00:00
+version = "6.x-2.4"
+core = "6.x"
+project = "select_or_other"
+datestamp = "1295921525"
+

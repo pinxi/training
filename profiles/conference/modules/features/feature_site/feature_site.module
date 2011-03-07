@@ -1,0 +1,45 @@
+<?php
+
+include_once('feature_site.features.inc');
+
+
+/**
+ * Implementation of hook_init().
+ */
+function feature_site_init() {
+  global $custom_theme, $user;
+
+  drupal_add_css(drupal_get_path('module', 'feature_site') . '/feature_site.css');
+  // Never use admin theme for anonymous
+  if ($user->uid == 0) {
+    $custom_theme = 0;
+  }
+  // Admin theme for development and running batches
+  if (in_array(arg(0), array('devel', 'batch'))) {
+    $custom_theme = variable_get('admin_theme', $custom_theme);
+  }
+}
+
+/**
+ * Implementation of hook_menu_alter().
+ */
+function feature_site_menu_alter(&$items) {
+  $items['node']['page callback'] = 'feature_site_front';
+  $items['node']['title'] = '';
+}
+
+/**
+ * Front page callback.
+ * @see feature_site_menu_alter()
+ */
+function feature_site_front() {
+  return '';
+}
+
+/**
+ * Implementation of hook_preprocess_page()
+ */
+function feature_site_preprocess_page(&$vars) {
+
+}
+

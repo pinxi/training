@@ -1,0 +1,143 @@
+<?php
+
+include_once('feature_pages.features.inc');
+
+/**
+ * Implementation of hook_init().
+ */
+function feature_pages_init() {
+  drupal_add_css(drupal_get_path('module', 'feature_pages') .'/feature_pages.css');
+}
+
+/**
+ * Implementation of hook_theme()
+ */
+function feature_pages_theme() {
+  return array(
+    'feature_pages_tips' => array(
+      'arguments' => array(),
+      'template' => 'formatters-tips',
+      'path' => drupal_get_path('module', 'feature_pages') .'/theme',
+    ),
+    'upload_form_current' => array(
+      'arguments' => array('form' => NULL),
+      'function' => 'feature_pages_upload_form_current',
+    ),
+  );
+}
+
+
+/**
+ * Implementation of hook_form_alter()
+ */
+function feature_pages_form_alter(&$form, &$form_state, $form_id) {
+  if (isset($form['type']['#value']) && $form['type']['#value'] == 'page') {
+    $form['feature_pages_tips'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Editing tips'),
+      '#weight' => 0,
+      '#collapsible' => FALSE,
+      '#collapsed' => FALSE,
+    );
+    $form['feature_pages_tips']['tips'] = array(
+      '#value' => theme('feature_pages_tips'),
+    );
+    $form['attachments']['#collapsed'] = FALSE;
+    $form['attachments']['#collapsible'] = FALSE;
+    $form['attachments']['#prefix'] = '<div class="attachments"><a name="attachments"></a>';
+    $form['menu']['#collapsed'] = FALSE;
+    $form['menu']['#collapsible'] = FALSE;
+    $form['menu']['link_title']['#required'] = TRUE;
+  }
+}
+
+/**
+ * Implementation of hook_node_form_sidebar()
+ */
+function feature_pages_node_form_sidebar(&$form, &$form_state) {
+  if ($form['type']['#value'] == 'page') {
+    return array('feature_pages_tips');
+  }
+}
+
+
+/**
+ * Theme the attachments list.
+ *
+ * @ingroup themeable
+ */
+function feature_pages_upload_form_current($form) {
+  $header = array('', t('Delete'), t('List'), t('Description'), t('Weight'), t('Size'));
+  drupal_add_tabledrag('upload-attachments', 'order', 'sibling', 'upload-weight');
+
+  $index = 1;
+  foreach (element_children($form) as  $key) {
+    // Add class to group weight fields for drag and drop.
+    $form[$key]['weight']['#attributes']['class'] = 'upload-weight';
+  
+    $replacements = '';
+    if (strstr($form[$key]['filemime']['#value'], 'image')) {
+      $replacements = drupal_render(feature_pages_get_image_replacements($form[$key]));
+    }
+
+    $index++;
+    $row = array('');
+    $row[] = drupal_render($form[$key]['remove']);
+    $row[] = drupal_render($form[$key]['list']);
+    $row[] = drupal_render($form[$key]['description']) . $replacements;
+    $row[] = drupal_render($form[$key]['weight']);
+    $row[] = drupal_render($form[$key]['size']);
+    $rows[] = array('data' => $row, 'class' => 'draggable');
+  }
+  $output = theme('table', $header, $rows, array('id' => 'upload-attachments'));
+  $output .= drupal_render($form);
+  return $output;
+}
+
+
+function feature_pages_get_image_replacements($element) {
+  static $info = array();
+  if (!$info) {
+    $info = drupal_parse_info_file(drupal_get_path('module', 'feature_pages') .'/feature_pages.info');
+  }
+  
+  $form = array();
+  $form['replacements'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Insert this image in the body'),
+    '#description' => t('To insert this image in the body copy one of the following codes and paste it in the desired position:'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+
+  if (isset($info['inline']['preset'])) {
+    $header = array(t('Code'), t('Size'), t('Position'));
+    
+    foreach ($info['inline']['preset'] as $preset => $preset_desc) {
+      $row = array();
+      $textfield = array('#type' => 'textfield', '#size' => 20);
+      $textfield['#value'] = "[upload|file=". $element['filename']['#value']."|preset=$preset]";
+      $row[] = drupal_render($textfield);
+      $row[] = t('!preset_desc', array('!preset_desc' => $preset_desc));
+      $row[] = '';
+      $rows[] = array('data' => $row, 'class' => 'replacement');
+      
+      if (isset($info['inline']['position'])) {
+        foreach ($info['inline']['position'] as $position => $position_desc) {
+          $row = array();
+          $textfield = array('#type' => 'textfield', '#size' => 20);
+          $textfield['#value'] = "[upload|file=". $element['filename']['#value']."|preset=$preset|position=$position]";
+          $row[] = drupal_render($textfield);
+          $row[] = t('!preset_desc', array('!preset_desc' => $preset_desc));
+          $row[] = t('!position_desc', array('!position_desc' => $position_desc));
+          $rows[] = array('data' => $row, 'class' => 'replacement');
+        }
+      }
+    }
+    $form['replacements']['table']['#value'] = theme('table', $header, $rows, array('class' => 'inline-replacements'));
+
+  }
+  return $form;
+}
+
+

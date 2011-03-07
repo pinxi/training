@@ -1,0 +1,51 @@
+? designkit-default_fallback.patch
+? designkit-defaultcolors.patch
+Index: designkit.module
+===================================================================
+RCS file: /cvs/drupal-contrib/contributions/modules/designkit/designkit.module,v
+retrieving revision 1.1.2.8
+diff -u -p -r1.1.2.8 designkit.module
+--- designkit.module	12 Aug 2010 19:03:51 -0000	1.1.2.8
++++ designkit.module	31 Aug 2010 15:13:55 -0000
+@@ -23,10 +23,21 @@ function designkit_theme() {
+  * Turn design choices into theme variables.
+  */
+ function designkit_preprocess_page(&$vars) {
++  global $theme;
++
+   $info = designkit_get_info();
+   $color = !empty($info['designkit']['color']) ? variable_get('designkit_color', array()) : array();
+   $image = !empty($info['designkit']['image']) ? variable_get('designkit_image', array()) : array();
+ 
++  // Fallback to default values.
++  if (!empty($info['designkit']['color'])) {
++    foreach ($info['designkit']['color'] as $name => $value) {
++      if (!isset($color[$name]) || !designkit_valid_color($color[$name])) {
++        $color[$name] = $info['designkit']['color'][$name]['default'];
++      }
++    }
++  }
++  
+   // Clear out stale values for image keys. This prevents themes from
+   // getting unexpected values if no images have been set.
+   if (!empty($info['designkit']['image'])) {
+@@ -50,6 +61,19 @@ function designkit_preprocess_page(&$var
+     }
+   }
+ 
++  // Fallback to default values.
++  if (!empty($info['designkit']['image'])) {
++    foreach ($info['designkit']['image'] as $name => $image) {
++      if (isset($image['default']) && !isset($vars[$name])) {
++        $filepath = drupal_get_path('theme', $theme) .'/'. $image['default'];
++        if (is_file($filepath)) {
++          $image[$name] = $filepath;
++          $vars[$name] = theme('designkit_image', $name, $filepath);
++        }
++      }
++    }
++  }
++
+   // Generate CSS styles.
+   if ($image || array_filter($color, 'designkit_valid_color')) {
+     // Add in designkit styles.

@@ -1,0 +1,50 @@
+
+.formatters-editing-tips {
+  font-size: .95em;
+}
+.formatters-editing-tips p {
+  margin: 1em 0; 
+}
+.formatters-editing-tips ul {
+  list-style: disc inside;
+  margin: 1em 0;
+}
+.formatters-editing-tips li {
+  padding: .25em 0;
+  padding-left: 2em;
+  text-indent: -1em;
+}
+.formatters-editing-tips .inner {
+  padding: 0 1em;
+}
+
+.inline-upload.image-position {
+  margin: 5px;
+}
+.inline-upload.image-position.center {
+  text-align: center;
+}
+.inline-upload.image-position.center img {
+  margin: 0 auto;
+}
+.inline-upload.image-position.left {
+  float: left;
+  margin-right: 15px;
+  margin-bottom: 10px;
+}
+.inline-upload.image-position.right {
+  float: right;
+  margin-lect: 15px;
+  margin-bottom: 10px;
+}
+
+table.inline-replacements {
+  font-size: 12px;
+}
+table.inline-replacements input {
+  height: 14px;
+}
+table.inline-replacements th,
+table.inline-replacements td {
+  padding: 2px;
+}

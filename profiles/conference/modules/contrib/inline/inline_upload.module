@@ -1,0 +1,574 @@
+<?php
+// $Id: inline_upload.module,v 1.13 2009/08/12 06:21:13 sun Exp $
+
+/**
+ * @file
+ * Inline API implementation to render uploaded attachments inline.
+ */
+
+/**
+ * Implementation of hook_inline_info().
+ *
+ * @see hook_inline_info()
+ */
+function inline_upload_inline_info() {
+  $info['upload'] = array(
+    'callback' => 'inline_upload_inline',
+  );
+  return $info;
+}
+
+/**
+ * Implementation of hook_inline().
+ *
+ * @param $op
+ *   The current operation performed.
+ * @param $macro
+ *   An inline macro object containing user supplied values, passed by reference.
+ */
+function inline_upload_inline($op, &$macro) {
+  switch ($op) {
+    case 'args':
+      // Return an array of available/required tag arguments.
+      $args = array(
+        // @todo Use vid instead here?
+        'nid' => array(
+          '#title' => t('Node id'),
+          '#description' => t('A node id containing a file to render.'),
+          '#type' => 'int',
+          '#default_value' => 0,
+        ),
+        'file' => array(
+          '#title' => t('File'),
+          '#description' => t('The number or name of a file to render.'),
+          '#required' => TRUE,
+        ),
+        'title' => array(
+          '#title' => t('Title'),
+          '#description' => t('A optional title to use for the link text.'),
+          '#type' => 'string',
+        ),
+        'preset' => array(
+          '#title' => t('Image preset'),
+          '#description' => t('Imagecache preset to be applied to the image.'),
+          '#type' => 'string',
+        ),
+        'position' => array(
+          '#title' => t('Image position'),
+          '#description' => t('Image position: "!left", "!center" or "!right".', array('!left' => 'left', '!center' => 'center', '!right' => 'right', )),
+          '#type' => 'string',
+        ),
+      );
+      return $args;
+
+    case 'presave':
+      // Context may be passed via inline_nodeapi().
+      if (!isset($macro->params['nid']) && !empty($macro->context['node'])) {
+        $macro->params['nid'] = $macro->context['node']->nid;
+      }
+      // Mark this tag as permanent, if we already have a node id.
+      // @todo Reverse the temporary/permanent logic; this is only used by a
+      //   minority of inline macros.
+      if (!empty($macro->params['nid'])) {
+        $macro->status = 0;
+      }
+
+      // @todo The processing of the current form state is required to
+      //   properly update a file's description (tooltip) during previews
+      //   as well as during final saving of a node.
+      //   However, this operation is only invoked when the macro is saved to
+      //   the database, but not for rendering. Not sure what the common
+      //   denominator of 'presave' and 'prepare' is, but it seems we need a
+      //   new operation... 'prepare' => 'prerender' at least!
+      //   Afterwards, use 'prepare' to perform alterations on the macro
+      //   before it is processed for editing.
+
+      // Convert a (human) numeric file reference to a named one.
+      if (isset($macro->params['file']) && is_int($macro->params['file'])) {
+        // Account for new uploaded files in node preview.
+        // @see upload_js()
+        // @todo This basically works how it should. However, altered weights are
+        //   applied when doing a subsequent preview only. So we may have to
+        //   additionally derive the attachment weights from the form in $_POST.
+        $cached_form_state = array();
+        if (isset($_POST['form_build_id']) && ($cached_form = form_get_cache($_POST['form_build_id'], $cached_form_state)) && isset($cached_form['#node']) && isset($cached_form['attachments']['wrapper']['files'])) {
+          $files = array();
+          foreach (element_children($cached_form['attachments']['wrapper']['files']) as $fid) {
+            $element = $cached_form['attachments']['wrapper']['files'][$fid];
+            if (empty($element['remove']['#default_value'])) {
+              $file = new stdClass;
+              foreach ($element as $key => $item) {
+                $file->{$key} = (isset($item['#value']) ? $item['#value'] : $item['#default_value']);
+              }
+              $files[$fid] = $file;
+            }
+          }
+        }
+        if (isset($files)) {
+          // Humans start to count from 1.
+          $filekeys = array_keys($files);
+          if (isset($filekeys[$macro->params['file'] - 1])) {
+            $macro->params['file'] = $files[$filekeys[$macro->params['file'] - 1]]->filename;
+          }
+        }
+      }
+      
+      // Check if the specified preset is a valid imagecache preset, unset if it's not.
+      if (isset($macro->params['preset']) && module_exists('imagecache')) {
+        if (!imagecache_preset_by_name($macro->params['preset'])) {
+          drupal_set_message(t('The image "!file" has not been resized because the preset "!preset" is not valid or does not exist.', array('!preset' => $macro->params['preset'], '!file' => $macro->params['file'])), 'error');
+          unset($macro->params['preset']);
+        }
+      }
+      else {
+        unset($macro->params['preset']);  
+      }
+
+      // Check if the specified position is a valid one, unset if it's not.
+      if (isset($macro->params['position'])) {
+        if (!in_array($macro->params['position'], array('left', 'center', 'right'))) {
+          unset($macro->params['position']);
+        }
+      }
+      
+      return;
+
+    case 'validate':
+      // Custom validation of user supplied values.
+      return TRUE;
+
+    case 'prepare':
+      // Prepare user supplied values for rendering.
+      if ($macro->params['nid'] == 0) {
+        // Insert some tricky code to insert current node id here. 02/02/2008 sun
+        if (arg(0) == 'node' && is_numeric(arg(1))) {
+          $macro->params['nid'] = (int)arg(1);
+        }
+      }
+      // Load a node object if valid nid is given.
+      if ($macro->params['nid'] > 0) {
+        $node = node_load($macro->params['nid']);
+        if (node_access('view', $node)) {
+          $macro->upload['node'] = $node;
+        }
+      }
+      return;
+
+    case 'render':
+      // Return a rendered representation to replace a tag.
+      if (!isset($macro->upload['node'])) {
+        return;
+      }
+      // Find the referenced file.
+      foreach ($macro->upload['node']->files as $node_file) {
+        if ($node_file->filename == $macro->params['file']) {
+          $file = $node_file;
+          break;
+        }
+      }
+      if (isset($file)) {
+        // Alter the file object on node previews.
+        inline_upload_prepare_file_object($file);
+
+        if (!empty($macro->params['title'])) {
+          $file->title = $macro->params['title'];
+        }
+        // Decide whether to show a link or an image tag.
+        if (_inline_upload_decide_img_tag($file)) {
+          // @todo Provide different rendering options for images, i.e.
+          //   imagecache presets. Seems like we can't support different presets
+          //   for teaser and page view anymore. :-(
+          //   Only hook_nodeapi($op = view|alter) provides $node->build_mode.
+          $preset = isset($macro->params['preset']) ? $macro->params['preset'] : '';
+          $output = theme('inline_upload_img', $file, '', $preset);
+          if (isset($macro->params['position'])) {
+            $output = theme('inline_upload_img_position', $output, $macro->params['position']);
+          }
+        }
+        else {
+          $output = theme('inline_upload_as_link', $file);
+        }
+      }
+      else {
+        $output = '<span style="color: red; font-weight: bold;">NOT FOUND: '. $macro->params['file'] .'</span>';
+      }
+      return $output;
+  }
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function inline_upload_theme() {
+  return array(
+    'inline_upload_as_link' => array(
+      'arguments' => array('file' => NULL),
+    ),
+    'inline_upload_img' => array(
+      'arguments' => array('file' => NULL, 'field' => NULL),
+    ),
+    'inline_upload_img_position' => array(
+      'arguments' => array('image' => NULL, 'position' => NULL),
+    ),
+    'inline_upload_prepend_to_field' => array(
+      'arguments' => array('node' => NULL, 'file' => NULL, 'field' => NULL),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function inline_upload_menu() {
+  $items['admin/settings/inline/inline_upload'] = array(
+    'title' => 'Inline Upload',
+    'description' => 'Manage automatic and manual inclusion of attachments in the content of your posts.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('inline_upload_settings'),
+    'access arguments' => array('administer inline settings'),
+  );
+  return $items;
+}
+
+/**
+ * Inline settings form builder function.
+ */
+function inline_upload_settings() {
+  $form = array();
+
+  // Check if Inline filter is enabled
+  $inline_upload_activated = FALSE;
+  foreach (filter_formats() as $format) {
+    foreach (filter_list_format($format->format) as $filter) {
+      if ($filter->module == 'inline') {
+        $inline_upload_activated = TRUE;
+        break 2;
+      }
+    }
+  }
+  if ($inline_upload_activated == FALSE) {
+    drupal_set_message(t('Inline filter is not yet enabled for at least one <a href="!formats">input format</a>.', array('!formats' => url('admin/settings/filters'))), 'error');
+  }
+
+  $form['inline']['upload']['image_link'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Image output'),
+    '#collapsible' => TRUE,
+    '#description' => t('<strong>Note:</strong> Images are only processed if a tag is referencing them. However, there is a auto-inline feature to inline all uploaded images automatically. Auto-inline can be enabled for certain <a href="!content-types">content types</a>.', array('!content-types' => url('admin/content/types'))),
+  );
+  $form['inline']['upload']['image_link']['inline_upload_link_img'] = array(
+    '#type' => 'radios',
+    '#title' => t('Link to images'),
+    '#default_value' => variable_get('inline_upload_link_img', 1),
+    '#options' => array(
+      '0' => t('Display image only'),
+      '1' => t('Display image with a link to the image file')
+    ),
+  );
+
+  $imagecache_path = '';
+  $presets = array();
+  if (module_exists('imagecache')) {
+    // ImageCache v2 API.
+    if (function_exists('imagecache_presets')) {
+      $imagecache_path = url('admin/build/imagecache');
+      $rules = imagecache_presets();
+      foreach ($rules as $preset_id => $preset_info) {
+        $presets[$preset_id] = $preset_info['presetname'];
+      }
+    }
+    // ImageCache v1 API (deprecated).
+    else {
+      $imagecache_path = url('admin/settings/imagecache');
+      $presets = _imagecache_get_presets();
+    }
+  }
+  $form['inline']['upload']['image_scaling'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Image dimensions and scaling'),
+    '#collapsible' => TRUE,
+    '#description' => (module_exists('imagecache') ? t('Select the <a href="!presets">Imagecache presets</a> to use for inlined images.', array('!presets' => $imagecache_path)) : t('<strong>Note:</strong> If <a href="!imagecache">Imagecache</a> module is installed, Inline provides support for image scaling.', array('!imagecache' => url('http://drupal.org/project/imagecache')))),
+  );
+
+  // If Imagecache module exists and is enabled, we assume that we want to use
+  // the improved image handling instead of our own.
+  if ($presets) {
+    $options     = array();
+    $options[''] = 'No Imagecache processing';
+    foreach ($presets as $id => $name) {
+      $options[$name] = $name;
+    }
+    $form['inline']['upload']['image_scaling']['inline_upload_teaser_preset'] = array(
+      '#title' => t('Teaser preset'),
+      '#description' => t('Select the Imagecache preset to use for inlined images in teaser view.'),
+      '#type' => 'select',
+      '#options' => $options,
+      '#default_value' => variable_get('inline_upload_teaser_preset', ''),
+    );
+    $form['inline']['upload']['image_scaling']['inline_upload_full_preset'] = array(
+      '#title' => t('Full preset'),
+      '#description' => t('Select the Imagecache preset to use for inlined images in full view.'),
+      '#type' => 'select',
+      '#options' => $options,
+      '#default_value' => variable_get('inline_upload_full_preset', ''),
+    );
+  }
+  else {
+    $form['inline']['upload']['image_scaling']['inline_upload_img_dim'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Maximum width and height for inline images (format: XXX,YYY)'),
+      '#size' => 10,
+      '#maxlength' => 10,
+      '#required' => TRUE,
+      '#default_value' => variable_get('inline_upload_img_dim', '150,150'),
+      '#description' => t('This setting limits the dimensions of displayed images in pixels. They will not be resized. Images exceeding these dimensions are automatically not displayed.', array('!content-types' => url('admin/content/types'))),
+    );
+  }
+
+  return system_settings_form($form);
+}
+
+/**
+ * Change file path of new files for previews.
+ * 
+ * New files are stored in a temporary upload directory until the content
+ * is saved. We alter the file object accordingly, so such files may be
+ * displayed if the temporary directory is inside the root directory of
+ * this Drupal site (publicly accessible).
+ */
+function inline_upload_prepare_file_object($file) {
+  $file = (object)$file;
+  // @todo Remove.
+  if (!is_numeric($file->fid)) {
+    $file->in_preview = TRUE;
+    $file->real_path = $file->filepath;
+    $file->filepath = $file->_filename;
+  }
+  return $file;
+}
+
+/**
+ * Decide if an image tag (&lt;IMG&gt;) or a link to a file should be rendered.
+ *
+ * @param $file
+ *   A file object.
+ *
+ * @return
+ *   TRUE in case an image tag should be generated.
+ */
+function _inline_upload_decide_img_tag($file) {
+  $inlined = array('jpg', 'jpeg', 'pjpeg', 'gif', 'png');
+  $mime = array_pop(explode('/', $file->filemime));
+  if (in_array($mime, $inlined)) {
+    if (module_exists('imagecache')) {
+      return TRUE;
+    }
+    else {
+      // Read maximum dimension settings.
+      list($maxwidth, $maxheight) = explode(',', variable_get('inline_upload_img_dim', '150,150'));
+
+      if (!empty($file->in_preview)) {
+        list($width, $height) = @getimagesize($file->real_path);
+      }
+      else {
+        list($width, $height) = @getimagesize($file->filepath);
+      }
+      if (($width && $height) && ($width <= $maxwidth && $height <= $maxheight)) {
+        return TRUE;
+      }
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Return HTML for a link to a file.
+ *
+ * @param $file
+ *   A file object.
+ */
+function theme_inline_upload_as_link($file) {
+  // Prepare link text with title or filename.
+  $linktext = (!empty($file->title) ? $file->title : $file->filename);
+  $targs = array(
+    '@name' => $file->filename,
+    '@size' => format_size($file->filesize),
+  );
+
+  return l($linktext, file_create_url($file->filepath), array(
+    'attributes' => array(
+      'title' => t('Download: @name (@size)', $targs),
+      'class' => 'inline-link inline-file-mime-' . strtr($file->filemime, '/.', '-'),
+    ),
+  ));
+}
+
+/**
+ * Return HTML for an image.
+ */
+function theme_inline_upload_img($file, $field, $preset = '') {
+  // Prepare link text with inline title, file description or filename.
+  $title = (!empty($file->title) ? $file->title : (!empty($file->description) ? $file->description : $file->filename));
+  $inline_upload_preset = ($field == 'teaser' ? 'inline_upload_teaser_preset' : 'inline_upload_full_preset');
+  $url = file_create_url($file->filepath);
+
+  if (module_exists('imagecache') && (variable_get($inline_upload_preset, '') != '' || $preset != '')) {
+    // User specified preset wins over the global one.
+    $preset = $preset ? $preset : variable_get($inline_upload_preset, '');
+    // ImageCache implements its own private files handling.
+    $output = theme('imagecache',
+      $preset,
+      $file->filepath,
+      $title,
+      $title,
+      array('class' => 'inline')
+    );
+  }
+  else {
+    // Private files support: theme_image() requires us to set $getsize to FALSE
+    // and prepare image attributes on our own.
+    $info = image_get_info($file->filepath);
+    $output = theme('image',
+      $url,
+      $title,
+      $title,
+      array('class' => 'inline', 'width' => $info['width'], 'height' => $info['height']),
+      FALSE
+    );
+  }
+  
+  if (variable_get('inline_upload_link_img', '1')) {
+    $attributes = array(
+      'class' => 'inline-image-link',
+      'title' => t('View: @file', array('@file' => $title)),
+    );
+    $output = l($output, $url, array('attributes' => $attributes, 'html' => TRUE));
+  }
+  
+  return $output;
+}
+
+/**
+ * Add CSS to control image position.
+ */
+function theme_inline_upload_img_position($image, $position) {
+  return '<div class="inline-upload image-position '. $position .'">'. $image .'</div>';
+}
+
+/**
+ * @defgroup inline_upload_auto Auto inline support
+ * @{
+ */
+
+/**
+ * Implementation of hook_form_alter().
+ *
+ * Allows to enable/disable auto-inline support for each content type.
+ */
+function inline_upload_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'node_type_form' && isset($form['identity']['type'])) {
+    $form['workflow']['upload_inline_upload'] = array(
+      '#type' => 'radios',
+      '#title' => t('Display attachments inline automatically'),
+      '#default_value' => variable_get('upload_inline_upload_'. $form['#node_type']->type, 0),
+      '#options' => array(
+        0 => t('Disabled'),
+        1 => t('Only in teaser view'),
+        2 => t('Only in body view'),
+        3 => t('In teaser and body view')),
+      '#description' => t('Choose whether uploaded images should be shown inline automatically. Make sure you set the dimensions at !settings_url', array('!settings_url' => l(t('Inline Upload settings'), 'admin/settings/inline/inline_upload'))),
+    );
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ *
+ * @todo Break processing at all if Inline filter is not enabled.
+ */
+function inline_upload_nodeapi(&$node, $op, $arg) {
+  if (!(isset($node->files) && is_array($node->files))) {
+    return;
+  }
+  switch ($op) {
+    case 'alter':
+    case 'print':
+    case 'rss item':
+      if (variable_get('upload_inline_upload_'. $node->type, 0)) {
+        $node = _inline_upload_auto_add($node);
+      }
+      return;
+  }
+}
+
+/**
+ * Automatically add all images to configured node views.
+ *
+ * This feature can be configured per content-type.
+ */
+function _inline_upload_auto_add($node) {
+  switch (variable_get('upload_inline_upload_'. $node->type, 0)) {
+    case 1:
+      // Display only in teaser.
+      foreach ($node->files as $fid => $file) {
+        $file = inline_upload_prepare_file_object($file);
+        if (_inline_upload_decide_img_tag($file)) {
+          $node->files[$fid]->inline = TRUE;
+          $node->teaser = theme('inline_upload_prepend_to_field', $node, $file, 'teaser');
+        }
+        else {
+          $node->files[$fid]->inline = FALSE;
+        }
+      }
+      break;
+
+    case 2:
+      // Display only in body.
+      foreach ($node->files as $fid => $file) {
+        $file = inline_upload_prepare_file_object($file);
+        if (_inline_upload_decide_img_tag($file)) {
+          $node->files[$fid]->inline = TRUE;
+          $node->body = theme('inline_upload_prepend_to_field', $node, $file, 'body');
+        }
+        else {
+          $node->files[$fid]->inline = FALSE;
+        }
+      }
+      break;
+
+    case 3:
+      // Display in teaser and body.
+      foreach ($node->files as $fid => $file) {
+        $file = inline_upload_prepare_file_object($file);
+        if (_inline_upload_decide_img_tag($file)) {
+          $node->files[$fid]->inline = TRUE;
+          $node->teaser = theme('inline_upload_prepend_to_field', $node, $file, 'teaser');
+          $node->body = theme('inline_upload_prepend_to_field', $node, $file, 'body');
+        }
+        else {
+          $node->files[$fid]->inline = FALSE;
+        }
+      }
+      break;
+  }
+  return $node;
+}
+
+/**
+ * Insert an image in front of node field.
+ *
+ * @param $node
+ *   The node object to process.
+ * @param $file
+ *   A file object of an image to insert.
+ * @param $field
+ *   The field name to prepend with the image.
+ */
+function theme_inline_upload_prepend_to_field($node, $file, $field) {
+  return theme('inline_upload_img', $file, $field) . $node->$field;
+}
+
+/**
+ * @} End of "defgroup inline_upload_auto".
+ */
+

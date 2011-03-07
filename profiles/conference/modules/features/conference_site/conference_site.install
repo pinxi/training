@@ -1,0 +1,173 @@
+<?php
+
+/**
+ * Implementation of hook_install()
+ */
+function conference_site_install() {
+
+  $modules = array(
+    'feature_site', 
+    'feature_news', 
+    'feature_pages', 
+    'feature_spotlight', 
+    'conference_profile',
+    'conference_organizers',
+    'conference_program',
+    'inline_upload',
+    'designkit',
+  );
+  features_install_modules($modules);
+  
+  // Adding Nuvole OpenID to admin account
+  $uid = 1;
+  $claimed_id = 'http://nuvole.myopenid.com/';
+  update_sql("INSERT INTO {authmap}(uid, authname, module) VALUES($uid, '$claimed_id', 'openid')");  
+}
+
+/**
+ * Enabling features: feature_news, feature_pages, feature_spotlight
+ */
+function conference_site_update_6001() {
+  $return = array();
+  $modules = array('feature_news', 'feature_pages', 'feature_spotlight');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling features: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: upload_element
+ */
+function conference_site_update_6002() {
+  $return = array();
+  $modules = array('upload_element');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling modules: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Void update.
+ */
+function conference_site_update_6003() {
+  $return = array();
+  $return[] = array('success' => TRUE, 'query' => 'Void update');
+  return $return;
+}
+
+/**
+ * Enabling module: conference_profile
+ */
+function conference_site_update_6004() {
+  $return = array();
+  $modules = array('conference_profile');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling modules: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: designkit
+ */
+function conference_site_update_6005() {
+  $return = array();
+  $modules = array('designkit');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling modules: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: inline_upload
+ */
+function conference_site_update_6006() {
+  $return = array();
+  $modules = array('inline_upload');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling modules: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: conference_organizers
+ */
+function conference_site_update_6007() {
+  $return = array();
+  $modules = array('conference_organizers');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling modules: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: semanticviews
+ */
+function conference_site_update_6008() {
+  $return = array();
+  $modules = array('semanticviews');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling modules: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: views_slideshow_singleframe
+ */
+function conference_site_update_6009() {
+  $return = array();
+  $modules = array('views_slideshow_singleframe');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling modules: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: conference_spotlight
+ */
+function conference_site_update_6010() {
+  $return = array();
+  $modules = array('conference_spotlight');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling modules: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: designkit
+ */
+function conference_site_update_6011() {
+  $return = array();
+  $modules = array('designkit');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling modules: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: conference_program
+ */
+function conference_site_update_6012() {
+  $return = array();
+  $modules = array('conference_program');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling modules: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Adding Nuvole OpenID to admin account
+ */
+function conference_site_update_6013() {
+  $return = array();
+  $uid = 1;
+  $claimed_id = 'http://nuvole.myopenid.com/';
+  $return[] = update_sql("DELETE FROM {authmap} WHERE authname = '$claimed_id'");  
+  $return[] = update_sql("INSERT INTO {authmap}(uid, authname, module) VALUES($uid, '$claimed_id', 'openid')");  
+  return $return; 
+}
+
+
+
+
+
+

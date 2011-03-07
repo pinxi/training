@@ -1,0 +1,81 @@
+<?php
+// $Id: inline.install,v 1.2 2009/08/12 05:27:35 sun Exp $
+
+/**
+ * @file
+ * Inline installation functions.
+ */
+
+/**
+ * Implementation of hook_schema().
+ */
+function inline_schema() {
+  $schema['inline'] = array(
+    'description' => t('Stores inline tags.'),
+    'fields' => array(
+      'iid' => array('type' => 'serial'),
+      'tag' => array('type' => 'varchar', 'length' => '32', 'not null' => FALSE),
+      'params' => array('type' => 'text', 'size' => 'normal',
+        'serialize' => TRUE,
+      ),
+      'status' => array('type' => 'int', 'not null' => TRUE, 'default' => 0,
+        'description' => 'A flag indicating whether the tag is temporary (1) or permanent (0).',
+      ),
+      'timestamp' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0,
+        'description' => 'UNIX timestamp for when the tag was added.',
+      ),
+    ),
+    'primary key' => array('iid'),
+    'indexes' => array(
+      'status' => array('status'),
+    ),
+  );
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function inline_install() {
+  drupal_install_schema('inline');
+}
+
+/**
+ * Implementation of hook_uninstall()
+ */
+function inline_uninstall() {
+  drupal_uninstall_schema('inline');
+}
+
+/**
+ * Create new {inline} table.
+ */
+function inline_update_6001() {
+  $ret = array();
+  if (db_table_exists('inline')) {
+    return $ret;
+  }
+  // Install new schema.
+  db_create_table($ret, 'inline', array(
+    'description' => t('Stores inline tags.'),
+    'fields' => array(
+      'iid' => array('type' => 'serial'),
+      'tag' => array('type' => 'varchar', 'length' => '32', 'not null' => FALSE),
+      'params' => array('type' => 'text', 'size' => 'normal',
+        'serialize' => TRUE,
+      ),
+      'status' => array('type' => 'int', 'not null' => TRUE, 'default' => 0,
+        'description' => 'A flag indicating whether the tag is temporary (1) or permanent (0).',
+      ),
+      'timestamp' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0,
+        'description' => 'UNIX timestamp for when the tag was added.',
+      ),
+    ),
+    'primary key' => array('iid'),
+    'indexes' => array(
+      'status' => array('status'),
+    ),
+  ));
+  return $ret;
+}
+

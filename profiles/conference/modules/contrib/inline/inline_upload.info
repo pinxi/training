@@ -1,0 +1,7 @@
+; $Id: inline_upload.info,v 1.2 2009/01/28 21:43:05 sun Exp $
+name = Inline Upload
+description = Allows attached files to be placed into the body of a node either automatically or by using simple tags.
+package = Input filters
+core = 6.x
+dependencies[] = inline
+dependencies[] = upload

@@ -1,0 +1,36 @@
+<?php
+
+include_once('conference_workshop.features.inc');
+
+/**
+ * Implementation of hook_flag_access()
+ */
+function conference_workshop_flag_access($flag, $content_id, $action, $account) {
+
+  if ($flag->name == 'subscription' && $action != 'unflag') {
+    $node = node_load($content_id);
+    $count = flag_get_counts('node', $content_id, TRUE);
+    $places = $node->field_workshop_places[0]['value'];
+    return ($node->field_workshop_places[0]['value'] >= $count['subscription']);
+  }
+}
+
+/**
+ * Implementation of hook_theme_registry_alter()
+ */
+function conference_workshop_theme_registry_alter(&$theme_registry) {
+  $theme_registry['node_form']['preprocess functions'][] = 'conference_workshop_preprocess_form_node';
+}
+
+/**
+ * Preprocess function.
+ */
+function conference_workshop_preprocess_form_node(&$vars) {
+
+  if ($vars['form']['#node']->type == 'profile') {
+    $vars['form']['subscribe']['#value'] = views_embed_view('conference_workshop', 'block_1');
+    $vars['form']['subscribe']['#weight'] = 10;
+  }
+}
+
+

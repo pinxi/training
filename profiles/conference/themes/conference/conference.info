@@ -1,0 +1,76 @@
+; $Id$
+name = "Conference"
+description = "Conference Template front-end theme based on Rubik."
+base theme = "rubik"
+core = "6.x"
+engine = "phptemplate"
+
+stylesheets[screen][] = "style.css"
+
+; Regions
+regions[content] = "Content"
+regions[left] = "Left"
+regions[right] = "Right"
+regions[content_bottom] = "Content Bottom"
+regions[left_bottom] = "Left Bottom"
+regions[footer] = "Footer"
+
+; DesignKit
+designkit[color][background][title] = "Background"
+designkit[color][background][description] = "Page background."
+designkit[color][background][default] = "#E8E8E5"
+
+designkit[color][foreground][title] = "Foreground"
+designkit[color][foreground][description] = "Foreground elements, like links, titles, etc..."
+designkit[color][foreground][default] = "#909080"
+
+designkit[image][header_image][title] = "Header"
+designkit[image][header_image][description] = "Header image of the website."
+designkit[image][header_image][imagecache] = "imagecache_scale:960x180"
+designkit[image][header_image][default] = "images/header.png"
+
+; Default layout
+layouts[default][name] = "Default"
+layouts[default][description] = "Simple one column page."
+layouts[default][template] = "page"
+
+; 2/1
+layouts[sidebar][name] = "Sidebar"
+layouts[sidebar][description] = "Main content with sidebar."
+layouts[sidebar][stylesheet] = "layout-sidebar.css"
+layouts[sidebar][template] = "layout-sidebar"
+layouts[sidebar][regions][] = "content"
+layouts[sidebar][regions][] = "left"
+layouts[sidebar][regions][] = "footer"
+
+; 1/1
+layouts[split][name] = "Split"
+layouts[split][description] = "50/50 split."
+layouts[split][stylesheet] = "layout-split.css"
+layouts[split][template] = "layout-sidebar"
+layouts[split][regions][] = "content"
+layouts[split][regions][] = "right"
+layouts[split][regions][] = "footer"
+
+; 1/1/1
+layouts[columns][name] = "Columns"
+layouts[columns][description] = "Three column layout."
+layouts[columns][stylesheet] = "layout-columns.css"
+layouts[columns][template] = "layout-columns"
+layouts[columns][regions][] = "content"
+layouts[columns][regions][] = "left"
+layouts[columns][regions][] = "right"
+layouts[columns][regions][] = "footer"
+
+; 2/1/1
+layouts[offset][name] = "Offset sidebars"
+layouts[offset][description] = "Main content with two offset sidebars."
+layouts[offset][stylesheet] = "layout-offset.css"
+layouts[offset][template] = "layout-offset"
+layouts[offset][regions][] = "content"
+layouts[offset][regions][] = "left"
+layouts[offset][regions][] = "right"
+layouts[offset][regions][] = "footer"
+
+
+

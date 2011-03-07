@@ -1,0 +1,39 @@
+.news .row {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #ddd;
+}
+.news .row.last {
+  margin-bottom: 0px;
+  border-bottom: 0;
+}
+
+.news .badge img {
+  border: 1px solid #ccc;
+  background: #fff;
+  padding: 3px;
+  margin-right:10px;
+  float: left;
+}
+
+.news .title {
+  font-size: 18px;
+  line-height: 23px;
+  font-weight: bold;
+}
+.block .news .title {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.news .date {
+  font-size: 11px;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.block .news .teaser {
+  font-size: 13px;
+  line-height: 17px;
+}
+

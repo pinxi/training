@@ -1,0 +1,110 @@
+? inline_upload-imagecache_and_position.patch
+Index: inline_upload.module
+===================================================================
+RCS file: /cvs/drupal-contrib/contributions/modules/inline/inline_upload.module,v
+retrieving revision 1.13
+diff -u -p -r1.13 inline_upload.module
+--- inline_upload.module	12 Aug 2009 06:21:13 -0000	1.13
++++ inline_upload.module	1 Sep 2010 07:54:08 -0000
+@@ -48,6 +48,16 @@ function inline_upload_inline($op, &$mac
+           '#description' => t('A optional title to use for the link text.'),
+           '#type' => 'string',
+         ),
++        'preset' => array(
++          '#title' => t('Image preset'),
++          '#description' => t('Imagecache preset to be applied to the image.'),
++          '#type' => 'string',
++        ),
++        'position' => array(
++          '#title' => t('Image position'),
++          '#description' => t('Image position: "!left", "!center" or "!right".', array('!left' => 'left', '!center' => 'center', '!right' => 'right', )),
++          '#type' => 'string',
++        ),
+       );
+       return $args;
+ 
+@@ -102,6 +112,25 @@ function inline_upload_inline($op, &$mac
+           }
+         }
+       }
++      
++      // Check if the specified preset is a valid imagecache preset, unset if it's not.
++      if (isset($macro->params['preset']) && module_exists('imagecache')) {
++        $presets = imagecache_presets();
++        if (!isset($presets[$macro->params['preset']])) {
++          unset($macro->params['preset']);  
++        }
++      }
++      else {
++        unset($macro->params['preset']);  
++      }
++
++      // Check if the specified position is a valid one, unset if it's not.
++      if (isset($macro->params['position'])) {
++        if (!in_array($macro->params['position'], array('left', 'center', 'right'))) {
++          unset($macro->params['position']);
++        }
++      }
++      
+       return;
+ 
+     case 'validate':
+@@ -150,7 +179,11 @@ function inline_upload_inline($op, &$mac
+           //   imagecache presets. Seems like we can't support different presets
+           //   for teaser and page view anymore. :-(
+           //   Only hook_nodeapi($op = view|alter) provides $node->build_mode.
+-          $output = theme('inline_upload_img', $file, '');
++          $preset = isset($macro->params['preset']) ? $macro->params['preset'] : '';
++          $output = theme('inline_upload_img', $file, '', $preset);
++          if (isset($macro->params['position'])) {
++            $output = theme('inline_upload_img_position', $output, $macro->params['position']);
++          }
+         }
+         else {
+           $output = theme('inline_upload_as_link', $file);
+@@ -174,6 +207,9 @@ function inline_upload_theme() {
+     'inline_upload_img' => array(
+       'arguments' => array('file' => NULL, 'field' => NULL),
+     ),
++    'inline_upload_img_position' => array(
++      'arguments' => array('image' => NULL, 'position' => NULL),
++    ),
+     'inline_upload_prepend_to_field' => array(
+       'arguments' => array('node' => NULL, 'file' => NULL, 'field' => NULL),
+     ),
+@@ -370,16 +406,18 @@ function theme_inline_upload_as_link($fi
+ /**
+  * Return HTML for an image.
+  */
+-function theme_inline_upload_img($file, $field) {
++function theme_inline_upload_img($file, $field, $preset = '') {
+   // Prepare link text with inline title, file description or filename.
+   $title = (!empty($file->title) ? $file->title : (!empty($file->description) ? $file->description : $file->filename));
+   $inline_upload_preset = ($field == 'teaser' ? 'inline_upload_teaser_preset' : 'inline_upload_full_preset');
+   $url = file_create_url($file->filepath);
+ 
+-  if (module_exists('imagecache') && variable_get($inline_upload_preset, '') != '') {
++  if (module_exists('imagecache') && (variable_get($inline_upload_preset, '') != '' || $preset != '')) {
++    // User specified preset wins over the global one.
++    $preset = $preset ? $preset : variable_get($inline_upload_preset, '');
+     // ImageCache implements its own private files handling.
+     $output = theme('imagecache',
+-      variable_get($inline_upload_preset, ''),
++      $preset,
+       $file->filepath,
+       $title,
+       $title,
+@@ -411,6 +449,13 @@ function theme_inline_upload_img($file, 
+ }
+ 
+ /**
++ * Add CSS to control image position.
++ */
++function theme_inline_upload_img_position($image, $position) {
++  return '<div class="inline-upload image-position '. $position .'">'. $image .'</div>';
++}
++
++/**
+  * @defgroup inline_upload_auto Auto inline support
+  * @{
+  */

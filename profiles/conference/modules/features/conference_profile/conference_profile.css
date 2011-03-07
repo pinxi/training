@@ -1,0 +1,12 @@
+
+.view-id-conference_profile_users.view-display-id-page_1 .feed-icon a {
+  display: block;
+  float: right;
+  color: #648F3A;
+  font-size: 15px;
+}
+.view-id-conference_profile_users.view-display-id-page_1 .feed-icon a img {
+  display: inline;
+  margin-bottom: -7px;
+  margin-left: 5px;
+}

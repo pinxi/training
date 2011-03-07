@@ -1,0 +1,6 @@
+; $Id: inline.info,v 1.5 2009/01/28 21:43:05 sun Exp $
+name = Inline API
+description = Allows modules to replace certain tags in contents.
+package = Input filters
+dependencies[] = filter
+core = 6.x

@@ -1,0 +1,11 @@
+<?php
+
+include_once('conference_spotlight.features.inc');
+
+/**
+ * Implementation of hook_init().
+ */
+function conference_spotlight_init() {
+  drupal_add_css(drupal_get_path('module', 'conference_spotlight') .'/conference_spotlight.css');
+  drupal_add_js(drupal_get_path('module', 'conference_spotlight') .'/conference_spotlight.js');
+}

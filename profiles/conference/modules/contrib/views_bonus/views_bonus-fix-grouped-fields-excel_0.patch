@@ -1,0 +1,10 @@
+--- export/views-bonus-export-xls.tpl.php	2010-06-08 10:39:22.000000000 -0400
++++ export/views-bonus-export-xls.tpl.php	2010-06-08 10:39:13.000000000 -0400
+@@ -21,6 +21,7 @@
+     <?php
+     $table = theme('table', $header, $themed_rows);
+     $table = preg_replace('/<\/?(a|span) ?.*?>/', '', $table); // strip 'a' and 'span' tags.
++    $table = preg_replace('/<div ?.*?>([^<]*)<\/div>/', '\1, ', $table); // Removes 'div' wrappers around grouped fields.
+     print $table;
+     ?>
+   </body>

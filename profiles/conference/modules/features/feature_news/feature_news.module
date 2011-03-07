@@ -1,0 +1,33 @@
+<?php
+
+include_once('feature_news.features.inc');
+
+function feature_news_init() {
+  drupal_add_css(drupal_get_path('module', 'feature_news') .'/feature_news.css');
+}
+
+/**
+ * Implementation of hook_theme()
+ */
+function feature_news_theme() {
+  return array(
+    'feature_news_teaser' => array(
+      'arguments' => array('vars' => NULL),
+      'template' => 'features_news-teaser',
+      'path' => drupal_get_path('module', 'feature_news') .'/theme',
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_preprocess_node()
+ */
+function feature_news_preprocess_node(&$vars) {
+//  if ($vars['type'] == 'news') {
+//    if (!$vars['page']) {
+//      $vars['content'] = $vars['title'] = '';
+//    }
+//    $vars['terms'] = '';
+//    $vars['content'] = theme('event_details', $vars) . $vars['content'];
+//  }
+}

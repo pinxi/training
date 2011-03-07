@@ -1,0 +1,577 @@
+<?php
+// $Id: inline.module,v 1.46 2009/08/12 07:52:29 sun Exp $
+
+/**
+ * @file
+ * Inline macro tag processing and rendering API for Drupal.
+ *
+ * @todo Major bug: Macros get updated in the database when being altered
+ *   during preview. When canceling node edit, the node contains the new,
+ *   unintended output.
+ * @todo Catch and delete removed inline macros.
+ */
+
+/**
+ * Implementation of hook_perm().
+ *
+ * @todo Add a central settings page other implementations can append to.
+ */
+function inline_perm() {
+  return array('administer inline settings');
+}
+
+/**
+ * Implementation of hook_inline_info().
+ *
+ * @see hook_inline_info()
+ */
+function inline_inline_info() {
+  $info['node'] = array(
+    'file' => 'inline.node.inc',
+  );
+  // @todo (Temporarily?) moved into inline_upload.module.
+//  if (module_exists('upload')) {
+//    $info['upload'] = array(
+//      'file' => 'inline.upload.inc',
+//    );
+//  }
+  return $info;
+}
+
+/**
+ * @defgroup inline_macro Inline input filter/macro parsing
+ * @{
+ */
+
+/**
+ * Implementation of hook_filter().
+ */
+function inline_filter($op, $delta = 0, $format = -1, $text = '') {
+  switch ($op) {
+    case 'list':
+      return array(0 => t('Inline contents'));
+
+    case 'description':
+      return t('Substitutes [inline] tags.');
+
+    case 'no cache':
+      // Development. 13/01/2008 sun
+      return TRUE;
+
+    case 'prepare':
+      return $text;
+
+    case 'process':
+      // @todo This is a typical *prepare* alteration!
+      // @todo Use Inline API for our own tags; only difference is that we probably
+      //   want to keep any macros that cannot be "rendered" for any reason --
+      //   or move this into inline_get_macros() ?
+      preg_match_all('/\[inline\|iid=(\d+)\]/', $text, $matches);
+      foreach ($matches[1] as $key => $iid) {
+        if ($macro = inline_macro_load($iid)) {
+          $text = str_replace($matches[0][$key], inline_macro_build($macro), $text);
+        }
+      }
+      foreach (inline_get_macros($text) as $original => $macro) {
+        // @todo Move this into inline_macro_render()?
+        $validation = inline_macro_validate($macro);
+        if (is_bool($validation) && $validation) {
+          $text = str_replace($original, inline_macro_render($macro), $text);
+        }
+        else {
+          $text = str_replace($original, (is_string($validation) ? $validation : ''), $text);
+        }
+      }
+      return $text;
+  }
+}
+
+/**
+ * Invoke a hook_inline() implementation.
+ */
+function inline_invoke($op, &$macro) {
+  // @todo Add static caching for function lookups here.
+  if (!function_exists($macro->callback)) {
+    if (isset($macro->file)) {
+      if (!isset($macro->path)) {
+        $macro->path = drupal_get_path('module', $macro->module);
+      }
+      require_once $macro->path . '/' . $macro->file;
+    }
+  }
+  if (function_exists($macro->callback)) {
+    $function = $macro->callback;
+    return $function($op, $macro);
+  }
+}
+
+/**
+ * Return all inline macros as an array.
+ *
+ * @todo Use placeholders for #default_value and/or additional properties.
+ *   Or introduce a new $op 'alter' for hook_inline?
+ */
+function inline_get_macros($text) {
+  static $implementations;
+  $macros = array();
+
+  if (!isset($implementations)) {
+    // Collect possible inline tag names.
+    $implementations = array();
+    foreach (module_implements('inline_info') as $module) {
+      $module_tags = module_invoke($module, 'inline_info');
+      if (!is_array($module_tags)) {
+        continue;
+      }
+      foreach ($module_tags as $tag => $info) {
+        $module_tags[$tag]['module'] = $module;
+        $module_tags[$tag]['tag'] = $tag;
+        // By default, we assume a hook_TAGNAME_inline() implementation.
+        if (!isset($info['callback'])) {
+          $module_tags[$tag]['callback'] = $module . '_' . $tag . '_inline';
+        }
+      }
+      $implementations = array_merge($implementations, $module_tags);
+    }
+  }
+
+  $tagnames = '('. implode('|', array_keys($implementations)) .')';
+  // @todo Add support for escaped [, ] chars
+  preg_match_all('@\['. $tagnames .'\s*\|([^\[\]]+)\]@', $text, $matches);
+  // Don't process duplicates.
+  $tags = array_unique($matches[2]);
+
+  foreach ($tags as $n => $parameters) {
+    $macro = (object) $implementations[$matches[1][$n]];
+    // @todo De-$opify hook_inline().
+    $args = inline_invoke('args', $macro);
+    // @todo Add support for escaped | characters.
+    $macro_params = array_map('trim', explode('|', $parameters));
+    // @todo Add a macro counter for each found tag *per module* to allow stuff
+    //   like odd/even classes (f.e. $macro['#count']).
+    foreach ($macro_params as $param) {
+      list($key, $value) = explode('=', $param, 2);
+      $key = trim($key);
+      // All parameter values are strings by default.
+      $value = trim($value);
+      // Convert numeric values.
+      if (is_numeric($value)) {
+        if (strpos($value, '.') !== FALSE) {
+          $value = (float)$value;
+        }
+        else {
+          $value = (int)$value;
+        }
+      }
+      // Convert boolean values.
+      else if (in_array(strtolower($value), array('true', 'false'))) {
+        $value = (bool)$value;
+      }
+      // Stack multiple occurences.
+      if (isset($macro->params[$key]) && isset($args[$key]['#multiple']) && $args[$key]['#multiple']) {
+        if (!is_array($macro->params[$key])) {
+          $macro->params[$key] = array($macro->params[$key]);
+        }
+        $macro->params[$key][] = $value;
+      }
+      else {
+        $macro->params[$key] = $value;
+      }
+    }
+    // Copy over internal inline macro id, if existent.
+    if (isset($macro->params['iid'])) {
+      $macro->iid = $macro->params['iid'];
+    }
+    // The full unaltered tag is the key for the filter attributes array.
+    $macros[$matches[0][$n]] = $macro;
+  }
+
+  return $macros;
+}
+
+/**
+ * Retrieve macro parameter value formats and validate user values against them.
+ *
+ * @param $macro
+ *   An inline macro object containing user supplied values.
+ * @return
+ *   Whether the supplied input is valid (TRUE) or not (FALSE or an error
+ *   message).
+ */
+function inline_macro_validate($macro) {
+  // Perform basic validation of tag arguments.
+  $args = inline_invoke('args', $macro);
+  foreach ($args as $arg => $info) {
+    // Check if required arguments are set.
+    if (isset($info['#required']) && $info['#required'] && !isset($info['#default_value']) && (!isset($macro->params[$arg]) || $macro->params[$arg] === '')) {
+      return t('Missing argument %arg.', array('%arg' => $arg));
+    }
+    if (isset($macro->params[$arg])) {
+      // Keep only the first value if multiple flag is not set.
+      if ((!isset($info['#multiple']) || !$info['#multiple']) && is_array($macro->params[$arg])) {
+        $macro->params[$arg] = $macro->params[$arg][0];
+      }
+      // Check if supplied arguments are of an expected type.
+      // @todo Use a custom #validate property for this instead.
+      if (isset($info['#type'])) {
+        $typecheck = 'is_' . $info['#type'];
+        if (!function_exists($typecheck) || !$typecheck($macro->params[$arg])) {
+          return t('Wrong value type supplied for argument %arg.', array('%arg' => $arg));
+        }
+      }
+    }
+  }
+  // Extended validation check by given module.
+  $module_validation = inline_invoke('validate', $macro);
+  if (isset($module_validation) && !$module_validation) {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * Generate HTML for an inline macro.
+ *
+ * @param $macro
+ *   A validated inline macro.
+ * @return
+ *   HTML presentation of the user supplied values.
+ *
+ * @todo Evaluate use of drupal_render().
+ */
+function inline_macro_render($macro) {
+  // Merge in default values.
+  $args = inline_invoke('args', $macro);
+  foreach ($args as $arg => $info) {
+    if (empty($macro->params[$arg]) && isset($info['#default_value'])) {
+      // @todo Allow special defaults like 'current user' or 'current node'.
+      $macro->params[$arg] = $info['#default_value'];
+    }
+  }
+
+  // Allow module to prepare tag parameters.
+  inline_invoke('prepare', $macro);
+
+  // @todo Prepare operation may not be successful; final validation before
+  //   rendering required.
+
+  // Generate a rendered representation for tag replacement.
+  $output = inline_invoke('render', $macro);
+
+  // If an error occured during rendering, we expect the result to be FALSE.
+  if (!is_bool($output)) {
+    return $output;
+  }
+  else {
+    return '';
+  }
+}
+
+/**
+ * Generate a string representation of an inline macro object.
+ *
+ * @todo That summary already sounds like a magic PHP object toString method. :)
+ */
+function inline_macro_build($macro) {
+  $macro_params = array();
+
+  $macro_params[] = $macro->tag;
+  // Prepend internal inline macro id as first parameter to all macros.
+  if (isset($macro->iid)) {
+    $macro->params = array_merge(array('iid' => $macro->iid), $macro->params);
+  }
+  // @todo Support for #multiple values.
+  // @todo Escape |, [, ] chars in values.
+  foreach ($macro->params as $key => $value) {
+    $macro_params[] = $key . '=' . $value;
+  }
+  return '[' . implode('|', $macro_params) . ']';
+}
+
+/**
+ * @} End of "defgroup inline_macro".
+ */
+
+/**
+ * @defgroup inline_crud Inline macro CRUD functions.
+ * @{
+ */
+
+/**
+ * Load an inline macro object by id.
+ */
+function inline_macro_load($iid) {
+  if ($macro = db_fetch_object(db_query("SELECT * FROM {inline} WHERE iid = %d", $iid))) {
+    $macro->params = unserialize($macro->params);
+  }
+  return $macro;
+}
+
+/**
+ * Store an inline macro object in the database.
+ */
+function inline_macro_save(&$macro) {
+  inline_invoke('presave', $macro);
+  $update = array();
+  if (isset($macro->iid)) {
+    $update[] = 'iid';
+    // @todo Vanished macros also need to be marked as temporary.
+    $macro->status = 0;
+  }
+  else {
+    $macro->status = 1; // temporary
+  }
+  $macro->timestamp = time();
+  return drupal_write_record('inline', $macro, $update);
+}
+
+/**
+ * @} End of "defgroup inline_crud".
+ */
+
+/**
+ * @defgroup inline_fapi Inline Form API handling
+ * @{
+ * Inline API solves a few major issues:
+ *
+ * - Provide context for input filters: Inline macros can be used anywhere, but
+ *   hook_filter() does not provide any context about the text being processed.
+ *   An possible inline macro parameter 'nid' may want to reference to the node
+ *   that is currently edited.
+ * - Handling of self-references: A macro parameter 'nid' may want to reference
+ *   to the node that is currently created. During creation, the node has no nid
+ *   yet. $node->nid is first assigned by node_save() after the final form
+ *   submission. But the user already entered inline macros that may have to
+ *   reference to this nid (without the nid, the inline macro could not be
+ *   rendered on other paths than node/%nid). Kind of a chicken-and-egg problem.
+ * - Handling inline macro parameter updates: Existing inline macros in contents
+ *   may have to be updated at some time to accommodate for bugfixes or changing
+ *   APIs of third-party modules.
+ * - Client-side editor integration: Client-side editors may need further
+ *   information to render an inline macro properly, such as a width and height
+ *   for images. They are unable to build something out of a [inline|iid=#] tag.
+ *
+ * Inline API therefore stores all inline macros upon form submission in the
+ * database, optionally flagged with a temporary status. Each time a form is
+ * displayed, all internal '[inline|iid=#]' macros are converted into their
+ * respective macro tags, for example '[upload|file=foo.jpg]'.
+ * When the form is submitted, all macros are converted back into internal
+ * inline macros.
+ *
+ * For temporary macros, the implementing module has to update the macro to flag
+ * it as permanent when the corresponding system object (f.e. a node) has been
+ * created. While doing so, implementations are also able to alter the stored
+ * inline macro tag in the database.
+ * All macros flagged as temporary will be purged during a subsequent cron run.
+ *
+ * This system allows inline macro implementations to inject certain system
+ * object ids into inline macro parameters when the object id is known. For
+ * example, the Upload module implementation shipped with Inline API (also)
+ * allows the user to refer to a file uploaded to the currently edited node by
+ * using its numeric (human) count (starting from 1), i.e. '[upload|file=2]'
+ * refers to the second uploaded file. The inline macro is automatically
+ * converted into '[upload|file=2nd-attachment.jpg]' upon preview or submit.
+ *
+ * @todo Old; anything worth to keep in the following?
+ * Inline needs to
+ * - insert the node id for new nodes in Inline tags that refer to nid=0, but
+ *   must not create a new node revision if revisions are enabled.
+ * - clear the filter cache if nodes of a certain type are updated, f.e. if an
+ *   image node is updated and the image is referenced in other nodes via
+ *   img_assist.
+ * - allow hook_inline() implementations to react on nodeapi operations, f.e. to
+ *   replace numeric file references of inline_upload tags (i.e. file=1) with
+ *   named file references (i.e. file=foo.jpg) upon node preview and node save.
+ */
+
+/**
+ * Implementation of hook_elements().
+ */
+function inline_elements() {
+  $type['textarea'] = array('#process' => 'inline_process_textarea');
+  return $type;
+}
+
+/**
+ * Converts internal [inline] macros into their original macros.
+ *
+ * @see inline_form_submit()
+ * @see inline_nodeapi()
+ */
+function inline_process_textarea(&$form, $edit, &$form_state, $complete_form) {
+  // @todo Only input format-enabled textareas may be processed.
+  /*
+  $parents = $form['#array_parents'];
+  array_pop($parents);
+  foreach ($parents as $key) {
+    $complete_form = $complete_form[$key];
+  }
+  if (isset($complete_form['format'])) {
+    $element = $complete_form['format'];
+    // Make sure we either match a input format selector or input format
+    // guidelines (displayed if user has access to one input format only).
+    if ((isset($element['#type']) && $element['#type'] == 'fieldset') || isset($element['format']['guidelines'])) {
+    }
+  }
+  */
+
+  // Store a reference to this textarea for our submit handler.
+  $form_state['inline_elements'][] = $form['#parents'];
+
+  // @todo Use Inline API for our own tags; only difference is that we probably
+  //   want to keep any macros that cannot be "rendered" for any reason.
+  preg_match_all('/\[inline\|iid=(\d+)\]/', $form['#value'], $matches);
+  foreach ($matches[1] as $key => $iid) {
+    if ($macro = inline_macro_load($iid)) {
+      $value = str_replace($matches[0][$key], inline_macro_build($macro), $form['#value']);
+      $form['#value'] = $value;
+    }
+  }
+
+  return $form;
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function inline_form_alter(&$form, &$form_state) {
+  $form['#submit'][] = 'inline_form_submit';
+}
+
+/**
+ * Form submit handler to save and convert inline macros into internal [inline] macros.
+ *
+ * This iterates over all form element references stored in
+ * $form_state['inline_elements'] and saves any new inline macros in the
+ * database with a "temporary" status.
+ *
+ * @see inline_process_textarea()
+ * @see inline_nodeapi()
+ */
+function inline_form_submit($form, &$form_state) {
+  // When inline_process_textarea() did not store any references, then there is
+  // nothing to do.
+  if (!isset($form_state['inline_elements'])) {
+    return;
+  }
+  foreach ($form_state['inline_elements'] as $parents) {
+    // @todo FAPI provides a form_set_value(), but no form_get_value().
+    eval('$content = &$form_state[\'values\'][\'' . implode("']['", $parents) . "'];");
+
+    foreach (inline_get_macros($content) as $original => $macro) {
+      inline_macro_save($macro);
+      // @todo Do not use a global.
+      $GLOBALS['inline'][$macro->iid] = $macro;
+      $content = str_replace($original, '[inline|iid=' . $macro->iid . ']', $content);
+    }
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ *
+ * Marks new inline macros as permanent and automatically assigns the parameter
+ * 'nid' for macros that need them (if not referencing another node).
+ */
+function inline_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'update':
+      // @todo Some inline tags are referencing to other system objects (f.e.
+      //   nodes). If the referenced object is updated, we need to clear the
+      //   filter cache for all contents referencing it.  As long as there is
+      //   no generic solution, we completely clear the filter cache.
+      cache_clear_all(NULL, 'cache_filter');
+      // Break intentionally left out.
+    case 'insert':
+      // Update references to 'current' system objects, e.g. the nid after
+      // inserting a new node.
+      // @todo Assign the currently processed field name to $macro['#field'] to
+      //   allow certain hook_inline implementations to add/ensure this
+      //   information in their macros.
+      // @todo Introduce a reference table?
+      if (empty($GLOBALS['inline'])) {
+        return;
+      }
+      foreach ($GLOBALS['inline'] as $iid => $macro) {
+        // inline_macro_save() invokes op 'presave'.
+        $macro->context['node'] = $node;
+        inline_macro_save($macro);
+      }
+      return;
+  }
+}
+
+/**
+ * Implementation of hook_cron().
+ */
+function inline_cron() {
+  // Remove old temporary inline macros older than one day (86400 seconds).
+  db_query('DELETE FROM {inline} WHERE status = %d AND timestamp < %d', 1, time() - 86400);
+}
+
+/**
+ * @} End of "defgroup inline_fapi".
+ */
+
+/**
+ * @defgroup inline_help Inline help
+ * @{
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function inline_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#inline':
+      return t('<p>Sometimes a user may want to add an image or a file inside the body of a node. This can be done with special tags that are replaced by links to the corresponding uploaded file. If the file is an image, it will be displayed inline, otherwise a link to the file will be inserted. To enable this feature and learn the proper syntax, visit the <a href="!filters">filters configuration screen</a>.</p>', array('!filters' => url('admin/filters')));
+
+    case 'filter#short-tip':
+      return t('You may add links to files uploaded with this node <a href="!explanation-url">using special tags</a>', array('!explanation-url' => url('filter/tips', array('fragment' => 'image'))));
+
+    case 'filter#long-tip':
+      return t('<p>You may link to files uploaded with the current node using special tags. The tags will be replaced by the corresponding files. Syntax: !syntax. Parameters: file represents the file uploaded with the node in which to link, assuming that the first uploaded file is labeled as 1 and so on. Title is optional and used instead of the filename.</p>
+<p>If the file is an image, it will be displayed inline, otherwise a link to the file will be inserted.</p>', array('!syntax' => '<code>[inline_upload|file=&lt;FILE-ID&gt;|title=&lt;TITLE-TEXT&gt;]</code>'));
+  }
+}
+
+/**
+ * Implementation of hook_filter_tips().
+ *
+ * @todo Allow hook_inline() implementations to add (long) filter tips.
+ */
+function inline_filter_tips($delta, $format, $long = FALSE) {
+  if ($long) {
+    return '<p><a id="filter-inline" name="filter-inline"></a>'. t('
+      You may link to files uploaded with the current node using special tags. The tags will be replaced by the corresponding files. For example:
+
+      Suppose you uploaded three files (in this order):
+      <ul>
+      <li>imag1.png (referred as file #1)
+      <li>file1.pdf (referred as file #2)
+      <li>imag2.png (referred as file #3)
+      </ul>
+
+      <pre>[inline_upload|file=1|title=test]  or  [inline_upload|file=imag1.png|title=test]</pre>
+      will be replaced by <em><code>&lt;img src=imag1.png alt=test&gt;</code></em>') .'</p>';
+  }
+  else {
+    return t('You may use <a href="!inline_help">[inline] tags</a> to display contents inline.', array('!inline_help' => url("filter/tips/$format", array('query' => 'filter-inline'))));
+  }
+}
+
+/**
+ * @} End of "defgroup inline_help".
+ */
+
+/**
+ * Implementation of hook_wysiwyg_include_directory().
+ */
+function inline_wysiwyg_include_directory($type) {
+  switch ($type) {
+    case 'plugins':
+      return $type;
+  }
+}
+

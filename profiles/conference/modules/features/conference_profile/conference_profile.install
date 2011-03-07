@@ -1,0 +1,71 @@
+<?php
+
+/**
+ * Implementation of hook_install()
+ */
+function conference_profile_install() {
+
+  $modules = array(
+    'rules', 
+  );
+  features_install_modules($modules);
+}
+
+/**
+ * Enabling module: rules
+ */
+function conference_profile_update_6001() {
+  $return = array();
+  $modules = array('rules');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling features: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: content_permissions
+ */
+function conference_profile_update_6002() {
+  $return = array();
+  $modules = array('content_permissions');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling features: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Disabling module: content_permissions
+ */
+function conference_profile_update_6003() {
+  $return = array();
+  $modules = array('content_permissions');
+  module_disable($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Disabling module: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: views_bonus
+ */
+function conference_profile_update_6004() {
+  $return = array();
+  $modules = array('views_bonus');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling features: '. implode(', ', $modules));
+  return $return;
+}
+
+/**
+ * Enabling module: views_bonus_export
+ */
+function conference_profile_update_6005() {
+  $return = array();
+  $modules = array('views_bonus_export');
+  features_install_modules($modules);
+  $return[] = array('success' => TRUE, 'query' => 'Enabling features: '. implode(', ', $modules));
+  return $return;
+}
+
+
+
+

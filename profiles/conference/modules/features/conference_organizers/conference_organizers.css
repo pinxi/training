@@ -1,0 +1,45 @@
+
+/**
+ * Generic --------------------------------------------------------------
+ */
+.organizer .row {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #ddd;
+}
+.organizer .row.last {
+  margin-bottom: 0px;
+  border-bottom: 0;
+}
+.organizer .title {
+  font-size: 15px;
+  font-weight: bold;
+}
+.organizer .logo {
+  float:left;
+  text-align: center;
+  margin-right: 15px;
+}
+.organizer .body {
+  margin-top: 15px;
+}
+/**
+ * Block --------------------------------------------------------------
+ */
+.block .organizer .links,
+.block .organizer .title,
+.block .organizer .logo {
+  text-align: center;
+}
+.block .organizer .logo {
+  float:none;
+  margin-right: 0px;
+  margin-bottom: 0px;
+}
+.block .organizer .row {
+  border-bottom: none;
+}
+.block .organizer .links a {
+  font-size: 11px;
+  color: #777;
+}

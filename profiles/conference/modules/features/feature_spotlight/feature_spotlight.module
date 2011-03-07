@@ -1,0 +1,64 @@
+<?php
+
+include_once('feature_spotlight.features.inc');
+
+/**
+ * Implementation of hook_views_handlers().
+ */
+function feature_spotlight_views_handlers() {
+  return array(
+    'info' => array(
+      'path' => drupal_get_path('module', 'feature_spotlight') . '/views',
+    ),
+    'handlers' => array(
+      'feature_spotlight_handler_filter_node_type' => array(
+        'parent' => 'views_handler_filter_boolean_operator',
+      ),
+      'feature_spotlight_handler_field_spotlight_image' => array(
+        'parent' => 'content_handler_field',
+      ),
+      'feature_spotlight_handler_field_spotlight_description' => array(
+        'parent' => 'views_handler_field_markup',
+      ),
+    ),
+  );
+}
+
+
+/**
+ * Implementation of hook_views_data_alter().
+ */
+function feature_spotlight_views_data_alter(&$data) {
+  $data['node']['spotlight'] = array(
+    'group' => t('Spotlight'),
+    'title' => t('Provider'),
+    'help' => t('Filter by content types that provide spotlight integration.'),
+    'real field' => 'type',
+    'filter' => array(
+      'handler' => 'feature_spotlight_handler_filter_node_type',
+    ),
+  );
+  $data['node']['spotlight_image'] = array(
+    'group' => t('Spotlight'),
+    'title' => t('Image'),
+    'help' => t('Image displayed in the spotlight'),
+    'real field' => 'nid',
+    'field' => array(
+      'handler' => 'feature_spotlight_handler_field_spotlight_image',
+    ),
+  );
+  $data['node_revisions']['spotlight_description'] = array(
+    'group' => t('Spotlight'),
+    'title' => t('Description'),
+    'help' => t('Description displayed in the spotlight: result of hook_spotlight_description() invocation, node teaser otherwise.'),
+    'real field' => 'teaser',
+    'field' => array(
+      'handler' => 'feature_spotlight_handler_field_spotlight_description',
+      'format' => 'format',
+     ),
+  );
+}
+
+
+
+

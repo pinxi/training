@@ -1,0 +1,26 @@
+<?php
+// $Id: tablegroup.module,v 1.1.2.1 2009/11/24 19:26:01 bec Exp $
+
+/**
+ * Implementation of Views' hook_views_api().
+ */
+function tablegroup_views_api() {
+  return array(
+    'api' => 2,
+  );
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function tablegroup_theme() {
+  return array(
+    'tablegroup_item' => array(
+      'arguments' => array('item' => NULL),
+    ),
+  );
+}
+
+function theme_tablegroup_item($item) {
+  return '<div class="tablegroup-item">' . $item . '</div>';
+}

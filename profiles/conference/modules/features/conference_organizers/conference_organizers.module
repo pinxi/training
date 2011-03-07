@@ -1,0 +1,20 @@
+<?php
+
+include_once('conference_organizers.features.inc');
+
+/**
+ * Implementation of hook_init().
+ */
+function conference_organizers_init() {
+  drupal_add_css(drupal_get_path('module', 'conference_organizers') .'/conference_organizers.css');
+}
+
+/**
+ * Implementation of hook_node_form_sidebar()
+ */
+function conference_organizers_node_form_sidebar(&$form, &$form_state) {
+  return array(
+    'field_organizer_order',
+  );
+}
+

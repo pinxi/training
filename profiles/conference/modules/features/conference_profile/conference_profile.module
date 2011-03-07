@@ -1,0 +1,55 @@
+<?php
+
+include_once('conference_profile.features.inc');
+
+/**
+ * Implementation of hook_init().
+ */
+function conference_profile_init() {
+  drupal_add_css(drupal_get_path('module', 'conference_profile') .'/conference_profile.css');
+}
+
+/**
+ * Implementation of hook_menu_alter().
+ */
+function conference_profile_menu_alter(&$items) {
+  // Profile nodes cannot be created manually.
+  $items['node/add/profile']['access callback'] = 'conference_profile_node_add_access';
+}
+
+/**
+ * Menu access callback.
+ */
+function conference_profile_node_add_access() {
+  return FALSE;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function conference_profile_theme() {
+  return array(
+    'views_bonus_export_feed_icon__xls' => array(
+      'arguments' => array('image_path', 'url', 'query', 'text'),
+    ),
+  );
+}
+
+/**
+ * Template function.
+ */
+function theme_views_bonus_export_feed_icon__xls($image_path, $url, $query = '', $text = '') {
+  $url_options = array('html' => true);
+  if ($query) {
+    $url_options['query'] = $query;
+  }
+  $text = t('Get Excel version');
+  $image_path = drupal_get_path('module', 'conference_profile') .'/images/icon-xls.png';
+  $image = theme('image', $image_path, $text, $text);
+  return l($text . $image, $url, $url_options);
+}
+
+
+
+
+
